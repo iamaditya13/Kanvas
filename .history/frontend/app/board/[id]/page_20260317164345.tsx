@@ -5,48 +5,39 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { useBoardStore, List, Task } from '@/store/boardStore';
 import { socketService } from '@/lib/socket';
 import { MoreHorizontal, Plus, MessageSquare } from 'lucide-react';
-
-const mockInitialData: List[] = [
-  {
-    id: "list-1",
-    name: "To Do",
-    position: 0,
-    tasks: [
-      { id: "task-1", title: "Research Competitors", description: "Analyze top 3 apps", position: 0 },
-      { id: "task-2", title: "Design System", description: "Create tokens and components", position: 1024 },
-    ]
-  },
-  {
-    id: "list-2",
-    name: "In Progress",
-    position: 1,
-    tasks: [
-      { id: "task-3", title: "Setup Next.js", description: "Configure Tailwind and App Router", position: 0 },
-    ]
-  },
-  {
-    id: "list-3",
-    name: "Done",
-    position: 2,
-    tasks: []
-  }
-];
+import { api } from '@/utils/api';
+import toast from 'react-hot-toast';
 
 export default function BoardPage({ params }: { params: { id: string } }) {
   const { lists, setLists, moveTask } = useBoardStore();
   const [isMounted, setIsMounted] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [boardName, setBoardName] = useState('Loading...');
+
+  const fetchBoardData = async () => {
+    try {
+      const data = await api.get(`/api/boards/${params.id}/lists`);
+      setLists(data);
+    } catch (error: any) {
+      toast.error('Failed to load board: ' + error.message);
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
-    // Initialize mock data
-    setLists(mockInitialData);
+    fetchBoardData();
 
+    // Setup Socket
     const socket = socketService.getSocket();
     
-    // Simulate current user
-    const currentUser = { id: Math.random().toString(), email: `user${Math.floor(Math.random() * 1000)}@test.com` };
-    
+    // Attempt to get user email (in a real app, from context or auth slice)
+    const storedAuth = localStorage.getItem('sb-ghmevcwsbabpxqgcmagv-auth-token');
+    let email = 'Anonymous';
+    if(storedAuth) {
+        try { email = JSON.parse(storedAuth).user.email; } catch(e){}
+    }
+
+    const currentUser = { id: Math.random().toString(), email };
     socket.emit('join_board', { boardId: params.id, user: currentUser });
 
     socket.on('presence:update', (users: any[]) => {
@@ -68,16 +59,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     const { source, destination } = result;
 
     if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
-    if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    ) return;
-
-    // Optimistic UI update locally
+    // Optimistic Update
     moveTask(source.droppableId, destination.droppableId, source.index, destination.index);
 
-    // Emit to others
+    // Broadcast
     const socket = socketService.getSocket();
     socket.emit('task:move', {
       boardId: params.id,
@@ -86,7 +73,38 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       sourceIndex: source.index,
       destIndex: destination.index
     });
+    
+    // In a full implementation, you'd also save the new position to Supabase here
   };
+
+  const handleAddList = async () => {
+    const listName = prompt('Enter list name');
+    if (!listName) return;
+    
+    const position = lists.length;
+    try {
+        await api.post(`/api/boards/${params.id}/lists`, { name: listName, position });
+        toast.success('List created');
+        fetchBoardData();
+    } catch(err: any) {
+        toast.error(err.message);
+    }
+  };
+
+  const handleAddTask = async (listId: string) => {
+    const title = prompt('Enter task title');
+    if (!title) return;
+
+    try {
+        const list = lists.find(l => l.id === listId);
+        const position = list ? list.tasks.length * 1024 : 0;
+        await api.post(`/api/lists/${listId}/tasks`, { title, description: '', position });
+        toast.success('Task created');
+        fetchBoardData(); // Or optimistically update
+    } catch(err: any) {
+        toast.error(err.message);
+    }
+  }
 
   if (!isMounted) return null;
 
@@ -95,7 +113,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       {/* Board Header */}
       <header className="h-16 border-b border-[#2A2A2A] bg-[#1A1A1A] flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold">Marketing Campaign</h1>
+          <h1 className="text-xl font-bold">{boardName}</h1>
           <div className="h-6 w-px bg-[#2A2A2A]"></div>
           <div className="flex -space-x-2">
             {onlineUsers.map((u, i) => (
@@ -129,7 +147,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                       {...provided.droppableProps}
                       className={`flex-1 overflow-y-auto px-3 pb-3 space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-[#202020]' : ''}`}
                     >
-                      {list.tasks.map((task, index) => (
+                      {list.tasks.map((task: Task, index: number) => (
                         <Draggable key={task.id} draggableId={task.id} index={index}>
                           {(provided, snapshot) => (
                             <div
@@ -160,7 +178,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
                 {/* Add Task Button */}
                 <div className="p-3 shrink-0 border-t border-[#2A2A2A]">
-                  <button className="flex items-center justify-center w-full py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-[#262626] rounded-lg transition-colors">
+                  <button onClick={() => handleAddTask(list.id)} className="flex items-center justify-center w-full py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-[#262626] rounded-lg transition-colors">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Task
                   </button>
@@ -170,7 +188,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             
             {/* Add List Button */}
             <div className="w-80 shrink-0">
-              <button className="flex items-center w-full px-4 py-3 bg-[#1A1A1A]/50 hover:bg-[#1A1A1A] border border-dashed border-[#333] rounded-xl text-gray-400 font-medium transition-colors">
+              <button onClick={handleAddList} className="flex items-center w-full px-4 py-3 bg-[#1A1A1A]/50 hover:bg-[#1A1A1A] border border-dashed border-[#333] rounded-xl text-gray-400 font-medium transition-colors">
                 <Plus className="w-5 h-5 mr-2" />
                 Add another list
               </button>

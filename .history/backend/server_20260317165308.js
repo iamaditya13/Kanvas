@@ -338,11 +338,6 @@ io.on('connection', (socket) => {
     socket.to(`board:${data.boardId}`).emit('task:updated', data);
   });
 
-  // Real-time comment broadcast
-  socket.on('comment:broadcast', ({ boardId, taskId, comment }) => {
-    socket.to(`board:${boardId}`).emit('comment:new', { taskId, comment });
-  });
-
   // Typing Indication
   socket.on('typing:start', ({ boardId, user, taskId }) => {
     socket.to(`board:${boardId}`).emit('member:typing', { user, taskId });
