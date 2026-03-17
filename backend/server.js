@@ -20,7 +20,7 @@ app.use(express.json());
 
 // Initialize Supabase admin client (using anon key for now, ideally service role for backend logic not tied to a specific user)
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Auth Middleware
@@ -43,6 +43,26 @@ const authenticateToken = async (req, res, next) => {
 // Basic Health Check Endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date() });
+});
+
+// Bypass Email Confirmation Signup Route
+app.post('/api/auth/signup', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+  // Use the admin API with the Service Role Key to bypass email confirmation
+  const { data: user, error: createError } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    password_confirm: password,
+    email_confirm: true // Force confirmation to true
+  });
+
+  if (createError) {
+    return res.status(400).json({ error: createError.message });
+  }
+
+  res.status(200).json({ message: 'User created successfully', user });
 });
 
 // REST APIs
@@ -331,9 +351,33 @@ app.put('/api/boards/:boardId/elements/:elementId', authenticateToken, async (re
   res.json(data);
 });
 
+// Delete Canvas Element
+app.delete('/api/boards/:boardId/elements/:elementId', authenticateToken, async (req, res) => {
+  const { boardId, elementId } = req.params;
+  const { error } = await supabase
+    .from('elements')
+    .delete()
+    .eq('id', elementId)
+    .eq('board_id', boardId);
+  if (error) return res.status(500).json({ error: error.message });
+  
+  io.to(`board:${boardId}`).emit('element:deleted', { id: elementId });
+  res.json({ success: true });
+});
+
 // Setup Socket.io
 const io = new Server(server, {
   cors: corsOptions
+});
+
+// Add auth middleware to Socket.io
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) return next(new Error("Unauthorized"));
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return next(new Error("Unauthorized"));
+  socket.user = user;
+  next();
 });
 
 // Store online users by board
@@ -342,10 +386,27 @@ const boardUsers = new Map();
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // Example authentication middleware could be added here
-  // socket.use((packet, next) => { ...verify jwt... next() })
+  socket.on('join_board', async ({ boardId, user }) => {
+    // Verify board access
+    try {
+      const { data: board } = await supabase.from('boards').select('workspace_id').eq('id', boardId).single();
+      if (!board) throw new Error("Board not found");
+      const { data: access, error: accessError } = await supabase
+        .from('workspace_members')
+        .select('id')
+        .eq('workspace_id', board.workspace_id)
+        .eq('user_id', socket.user.id)
+        .single();
+      
+      if (accessError || !access) {
+        socket.emit("error", { message: "Access denied to this board" });
+        return;
+      }
+    } catch (err) {
+      socket.emit("error", { message: err.message || "Failed to verify access" });
+      return;
+    }
 
-  socket.on('join_board', ({ boardId, user }) => {
     socket.join(`board:${boardId}`);
     
     // Track presence
@@ -394,8 +455,9 @@ io.on('connection', (socket) => {
   socket.on('element:move', ({ boardId, id, x, y }) => {
     socket.to(`board:${boardId}`).emit('element:moved', { id, x, y });
   });
-  socket.on('element:update', ({ boardId, id, content }) => {
-    socket.to(`board:${boardId}`).emit('element:updated', { id, content });
+  socket.on('element:update', (data) => {
+    const payload = { ...data, updatedAt: Date.now() };
+    socket.to(`board:${data.boardId}`).emit('element:updated', payload);
   });
 
   // Cursor movement broadcast
