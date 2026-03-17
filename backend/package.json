@@ -1,21 +1,29 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Kanvas realtime collaboration backend",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node server.js",
+    "test": "node --test",
+    "format": "prettier --write ."
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "realtime",
+    "socket.io",
+    "supabase",
+    "collaboration"
+  ],
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "socket.io": "^4.8.3"
+    "prettier": "^3.6.2",
+    "socket.io": "^4.8.3",
+    "zod": "^4.1.12"
   }
 }
