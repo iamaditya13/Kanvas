@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import toast from 'react-hot-toast';
 import { socketService } from '@/lib/socket';
 import { useBoardStore } from './store/useBoardStore';
 import { BoardComment, CanvasElement, ElementPayload, PathPoint, PresenceUser, RemoteCursor } from './types';
@@ -69,10 +68,12 @@ export const useBoardCollaboration = ({
   boardId,
   shareToken,
   enabled,
+  onFeedback,
 }: {
   boardId: string;
   shareToken?: string;
   enabled: boolean;
+  onFeedback?: (message: string) => void;
 }) => {
   const session = useBoardStore((state) => state.currentUser);
   const access = useBoardStore((state) => state.access);
@@ -88,6 +89,13 @@ export const useBoardCollaboration = ({
   const setSelectedElementId = useBoardStore((state) => state.setSelectedElementId);
   const heartbeatRef = useRef<number | null>(null);
   const cursorThrottleRef = useRef(0);
+  const notifyError = useCallback(
+    (error: unknown, fallbackMessage: string) => {
+      const message = error instanceof Error ? error.message : fallbackMessage;
+      onFeedback?.(message);
+    },
+    [onFeedback]
+  );
 
   const boardElementsMap = useMemo(() => {
     const map = new Map<string, CanvasElement>();
@@ -151,7 +159,7 @@ export const useBoardCollaboration = ({
           socket.on('element:moved', handleElementMutation);
           socket.on('element:deleted', ({ elementId }: { boardId: string; elementId: string }) => removeElement(elementId));
           socket.on('comment:created', ({ comment }: { comment: BoardComment }) => upsertComment(comment));
-          socket.on('socket:error', ({ message }: { message: string }) => toast.error(message));
+          socket.on('socket:error', ({ message }: { message: string }) => onFeedback?.(message));
 
           await socketService.emitWithAck(socket, 'board:join', { boardId, shareToken });
 
@@ -161,7 +169,7 @@ export const useBoardCollaboration = ({
         });
       } catch (error) {
         if (active) {
-          toast.error(error instanceof Error ? error.message : 'Failed to connect to the board');
+          notifyError(error, 'Failed to connect to the board');
         }
       }
     };
@@ -188,7 +196,22 @@ export const useBoardCollaboration = ({
         return undefined;
       });
     };
-  }, [access, boardId, enabled, removeCursor, session, setCursor, setPresence, shareToken, upsertComment, upsertElement, withSocket, removeElement]);
+  }, [
+    access,
+    boardId,
+    enabled,
+    notifyError,
+    onFeedback,
+    removeCursor,
+    removeElement,
+    session,
+    setCursor,
+    setPresence,
+    shareToken,
+    upsertComment,
+    upsertElement,
+    withSocket,
+  ]);
 
   const createCanvasElement = useCallback(
     async (draft: CreateElementInput) => {
@@ -215,11 +238,11 @@ export const useBoardCollaboration = ({
         return data.element;
       } catch (error) {
         removeElement(optimistic.id);
-        toast.error(error instanceof Error ? error.message : 'Failed to create element');
+        notifyError(error, 'Failed to create element');
         return null;
       }
     },
-    [boardId, replaceElement, removeElement, session, setSelectedElementId, upsertElement, withSocket]
+    [boardId, notifyError, replaceElement, removeElement, session, setSelectedElementId, upsertElement, withSocket]
   );
 
   const moveCanvasElement = useCallback(
@@ -247,11 +270,11 @@ export const useBoardCollaboration = ({
         return true;
       } catch (error) {
         upsertElement(current);
-        toast.error(error instanceof Error ? error.message : 'Failed to move element');
+        notifyError(error, 'Failed to move element');
         return false;
       }
     },
-    [boardElementsMap, boardId, upsertElement, withSocket]
+    [boardElementsMap, boardId, notifyError, upsertElement, withSocket]
   );
 
   const updateCanvasElement = useCallback(
@@ -287,11 +310,11 @@ export const useBoardCollaboration = ({
         return true;
       } catch (error) {
         upsertElement(current);
-        toast.error(error instanceof Error ? error.message : 'Failed to update element');
+        notifyError(error, 'Failed to update element');
         return false;
       }
     },
-    [boardElementsMap, boardId, upsertElement, withSocket]
+    [boardElementsMap, boardId, notifyError, upsertElement, withSocket]
   );
 
   const deleteCanvasElement = useCallback(
@@ -316,11 +339,11 @@ export const useBoardCollaboration = ({
         return true;
       } catch (error) {
         upsertElement(current);
-        toast.error(error instanceof Error ? error.message : 'Failed to delete element');
+        notifyError(error, 'Failed to delete element');
         return false;
       }
     },
-    [boardElementsMap, boardId, removeElement, upsertElement, withSocket]
+    [boardElementsMap, boardId, notifyError, removeElement, upsertElement, withSocket]
   );
 
   const createElementComment = useCallback(
@@ -346,10 +369,10 @@ export const useBoardCollaboration = ({
         upsertComment(data.comment);
       } catch (error) {
         setComments(useBoardStore.getState().comments.filter((comment) => comment.id !== optimistic.id));
-        toast.error(error instanceof Error ? error.message : 'Failed to add comment');
+        notifyError(error, 'Failed to add comment');
       }
     },
-    [boardId, session, setComments, upsertComment, withSocket]
+    [boardId, notifyError, session, setComments, upsertComment, withSocket]
   );
 
   const sendCursor = useCallback(

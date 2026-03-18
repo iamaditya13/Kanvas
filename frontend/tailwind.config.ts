@@ -13,7 +13,7 @@ const config: Config = {
         foreground: "var(--foreground)",
         sidebar: "#1A1A1A",
         card: "#262626",
-        accent: "#135BEC", // From Stitch
+        accent: "#111827",
       },
     },
   },

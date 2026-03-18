@@ -16,7 +16,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
 import { boardApi } from './api';
 import { CreateElementInput, createPathPayload, useBoardCollaboration } from './useBoardCollaboration';
 import { useBoardStore } from './store/useBoardStore';
@@ -29,10 +28,9 @@ const TOOL_OPTIONS: Array<{ key: Tool; label: string; icon: typeof MousePointer2
   { key: 'comment', label: 'Comment', icon: MessageSquare },
 ];
 
-const NOTE_COLORS = ['#FFF9C4', '#FFE0B2', '#D7F9F1', '#F8BBD0'];
-const PATH_COLOR = '#135BEC';
+const NOTE_COLORS = ['#F3F4F6', '#F8FAFC', '#E5E7EB', '#E2E8F0'];
+const PATH_COLOR = '#111827';
 const DEFAULT_TEXT_COLOR = '#111827';
-const GRID_SIZE = 32;
 
 interface BoardScreenProps {
   boardId: string;
@@ -55,6 +53,11 @@ interface PanState {
 
 interface ShareDialogMessage {
   tone: 'success' | 'error';
+  text: string;
+}
+
+interface FeedbackDialogMessage {
+  title: string;
   text: string;
 }
 
@@ -125,6 +128,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
   const [shareRole, setShareRole] = useState<ShareRole>('editor');
   const [commentInput, setCommentInput] = useState('');
   const [shareDialogMessage, setShareDialogMessage] = useState<ShareDialogMessage | null>(null);
+  const [feedbackDialogMessage, setFeedbackDialogMessage] = useState<FeedbackDialogMessage | null>(null);
   const [historyState, setHistoryState] = useState({ undoDepth: 0, redoDepth: 0 });
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -142,11 +146,23 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
 
   const isGuestSession = currentUser?.id === 'guest';
 
+  const showFeedbackDialog = useCallback((title: string, text: string) => {
+    setFeedbackDialogMessage({ title, text });
+  }, []);
+
+  const handleCollaborationFeedback = useCallback(
+    (message: string) => {
+      showFeedbackDialog('Collaboration update', message);
+    },
+    [showFeedbackDialog]
+  );
+
   const { createCanvasElement, moveCanvasElement, updateCanvasElement, deleteCanvasElement, createElementComment, sendCursor } =
     useBoardCollaboration({
       boardId,
       shareToken,
       enabled: Boolean(access && currentUser && !isGuestSession),
+      onFeedback: handleCollaborationFeedback,
     });
 
   const selectedElement = useMemo(
@@ -456,12 +472,11 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
     try {
       const updatedBoard = await boardApi.updateBoardName(board.id, boardNameDraft.trim(), shareToken);
       setBoard(updatedBoard);
-      toast.success('Board name updated');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update board name');
+      showFeedbackDialog('Unable to update board name', error instanceof Error ? error.message : 'Failed to update board name');
       setBoardNameDraft(board.name);
     }
-  }, [board, boardNameDraft, setBoard, shareToken]);
+  }, [board, boardNameDraft, setBoard, shareToken, showFeedbackDialog]);
 
   const handleShareSave = useCallback(async () => {
     if (!board) {
@@ -779,7 +794,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#eef4ff,_#f7f6ef_55%,_#f3f1ea)] text-slate-700">
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-700">
         <div className="rounded-2xl border border-white/60 bg-white/70 px-5 py-4 shadow-xl backdrop-blur">
           Loading board...
         </div>
@@ -799,12 +814,10 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
   }
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_#f5fbff,_#f5f1e7_52%,_#ece7dc)] text-slate-900">
-      <Toaster position="top-center" />
-
+    <div className="relative flex h-screen overflow-hidden bg-slate-100 text-slate-900">
       <div className="absolute inset-x-0 top-0 z-30 mx-auto mt-4 flex w-[min(1220px,calc(100%-2rem))] items-center gap-3 rounded-3xl border border-white/60 bg-white/75 px-5 py-3 shadow-[0_24px_60px_rgba(15,23,42,0.14)] backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#135BEC] text-lg font-semibold text-white shadow-lg shadow-blue-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-lg font-semibold text-white shadow-lg shadow-slate-900/15">
             K
           </div>
           <div>
@@ -819,7 +832,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
         </div>
 
         <div className="ml-4 flex items-center gap-2 rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-500">
-          <span className={`h-2 w-2 rounded-full ${access.canEdit ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          <span className={`h-2 w-2 rounded-full ${access.canEdit ? 'bg-slate-900' : 'bg-slate-400'}`} />
           {access.canEdit ? 'Editor access' : 'Viewer access'}
         </div>
 
@@ -882,7 +895,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
             key={key}
             onClick={() => setTool(key)}
             className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-              tool === key ? 'bg-[#135BEC] text-white shadow-lg shadow-blue-500/20' : 'text-slate-600 hover:bg-slate-100'
+              tool === key ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/15' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
             <Icon className="h-4 w-4" />
@@ -950,7 +963,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
               type="checkbox"
               checked={showRemoteCursors}
               onChange={(event) => setShowRemoteCursors(event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-[#135BEC] focus:ring-[#135BEC]"
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
             />
             Show remote cursors
           </label>
@@ -994,7 +1007,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
                   value={commentInput}
                   onChange={(event) => setCommentInput(event.target.value)}
                   placeholder="Add context, feedback, or a decision..."
-                  className="min-h-[110px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#135BEC]"
+                  className="min-h-[110px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-slate-900"
                 />
                 <button
                   onClick={() => {
@@ -1004,7 +1017,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
                     void createElementComment(selectedElement.id, commentInput.trim());
                     setCommentInput('');
                   }}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#135BEC] px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                  className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
                 >
                   <MessageSquare className="h-4 w-4" />
                   Post comment
@@ -1028,9 +1041,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
         onPointerUp={() => void handleCanvasPointerUp()}
         onWheel={handleCanvasWheel}
         style={{
-          backgroundImage: `radial-gradient(circle, rgba(15,23,42,0.12) 1px, transparent 1px)`,
-          backgroundSize: `${GRID_SIZE * viewport.zoom}px ${GRID_SIZE * viewport.zoom}px`,
-          backgroundPosition: `${viewport.x}px ${viewport.y}px`,
+          backgroundColor: '#f8fafc',
           cursor: spacePressedRef.current ? 'grab' : tool === 'draw' ? 'crosshair' : 'default',
         }}
       >
@@ -1078,7 +1089,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
             <div
               key={element.id}
               onPointerDown={(event) => handleElementPointerDown(event, element)}
-              className={`absolute overflow-hidden transition ${textareaStyles} ${isSelected ? 'ring-2 ring-[#135BEC]/70 ring-offset-2 ring-offset-transparent' : ''}`}
+              className={`absolute overflow-hidden transition ${textareaStyles} ${isSelected ? 'ring-2 ring-slate-900/70 ring-offset-2 ring-offset-transparent' : ''}`}
               style={{
                 left: screen.x,
                 top: screen.y,
@@ -1154,7 +1165,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
       {shareDialogOpen && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/30 px-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-[32px] border border-white/70 bg-white p-8 shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Share board</p>
                 <h2 className="mt-2 text-2xl font-semibold text-slate-900">Control link access</h2>
@@ -1164,7 +1175,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
                   setShareDialogMessage(null);
                   setShareDialogOpen(false);
                 }}
-                className="rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-500"
+                className="inline-flex h-10 items-center justify-center rounded-full bg-slate-100 px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
               >
                 Close
               </button>
@@ -1175,7 +1186,7 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
                 <select
                   value={shareVisibility}
                   onChange={(event) => setShareVisibility(event.target.value as BoardVisibility)}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
+                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none"
                 >
                   <option value="private">Private</option>
                   <option value="link">Anyone with the link</option>
@@ -1186,20 +1197,20 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
                 <select
                   value={shareRole}
                   onChange={(event) => setShareRole(event.target.value as ShareRole)}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
+                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none"
                 >
                   <option value="editor">Can edit</option>
                   <option value="viewer">Can view</option>
                 </select>
               </label>
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+              <div className="break-all rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                 {board.shareSlug ? `${window.location.origin}/share/${board.shareSlug}` : 'No share link generated yet.'}
               </div>
               {shareDialogMessage && (
                 <div
                   className={`rounded-2xl px-4 py-3 text-sm ${
                     shareDialogMessage.tone === 'success'
-                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                      ? 'border border-slate-300 bg-slate-100 text-slate-700'
                       : 'border border-red-200 bg-red-50 text-red-700'
                   }`}
                 >
@@ -1207,10 +1218,10 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
                 </div>
               )}
             </div>
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+            <div className="mt-8 flex items-center justify-between gap-3">
               <button
                 onClick={() => void handleCopyLink()}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300"
               >
                 <Copy className="h-4 w-4" />
                 Copy link
@@ -1221,17 +1232,34 @@ export function BoardScreen({ boardId, shareToken }: BoardScreenProps) {
                     setShareDialogMessage(null);
                     setShareDialogOpen(false);
                   }}
-                  className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-500"
+                  className="inline-flex h-10 items-center rounded-full bg-slate-100 px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => void handleShareSave()}
-                  className="rounded-full bg-[#135BEC] px-4 py-2 text-sm font-medium text-white"
+                  className="inline-flex h-10 items-center rounded-full bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
                 >
                   Save settings
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {feedbackDialogMessage && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">{feedbackDialogMessage.title}</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-500">{feedbackDialogMessage.text}</p>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setFeedbackDialogMessage(null)}
+                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

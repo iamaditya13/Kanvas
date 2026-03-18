@@ -67,7 +67,7 @@ export const boardApi = {
       boardName: string;
       shareSlug: string;
       access: { mode: 'member' | 'share'; role: string; canEdit: boolean };
-    }>(`/api/shares/${slug}`, { method: 'GET' }, undefined, { redirectOnUnauthorized: false }),
+    }>(`/api/shares/${encodeURIComponent(slug)}`, { method: 'GET' }, undefined, { redirectOnUnauthorized: false }),
   updateBoardName: (boardId: string, name: string, shareToken?: string) =>
     fetchJson<BoardInfo>(`/api/boards/${boardId}`, {
       method: 'PATCH',
