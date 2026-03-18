@@ -115,9 +115,52 @@ const createBoard = async (workspaceId, userId, name) => {
   return mapBoard(data);
 };
 
+const deleteBoard = async (workspaceId, boardId, userId) => {
+  const membership = await getWorkspaceMembership(workspaceId, userId);
+
+  if (!membership || membership.role === 'viewer') {
+    throw new AppError(403, 'BOARD_DELETE_FORBIDDEN', 'You do not have permission to delete boards in this workspace');
+  }
+
+  const { data: board, error: boardLookupError } = await supabase
+    .from('boards')
+    .select('id, owner_id, workspace_id')
+    .eq('id', boardId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+
+  if (boardLookupError) {
+    throw new AppError(500, 'BOARD_LOOKUP_FAILED', boardLookupError.message);
+  }
+
+  if (!board) {
+    throw new AppError(404, 'BOARD_NOT_FOUND', 'Board not found');
+  }
+
+  if (membership.role !== 'admin' && board.owner_id !== userId) {
+    throw new AppError(403, 'BOARD_DELETE_FORBIDDEN', 'Only workspace admins or board owners can delete this board');
+  }
+
+  const { error: deleteError } = await supabase
+    .from('boards')
+    .delete()
+    .eq('id', boardId)
+    .eq('workspace_id', workspaceId);
+
+  if (deleteError) {
+    throw new AppError(500, 'BOARD_DELETE_FAILED', deleteError.message);
+  }
+
+  return {
+    id: boardId,
+    workspaceId,
+  };
+};
+
 module.exports = {
   listWorkspacesForUser,
   createWorkspace,
   listBoardsForWorkspace,
   createBoard,
+  deleteBoard,
 };

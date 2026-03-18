@@ -3,6 +3,10 @@ const { AppError } = require('../lib/appError');
 const { mapBoard } = require('./mappers');
 
 const getWorkspaceMembership = async (workspaceId, userId) => {
+  if (!userId) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from('workspace_members')
     .select('workspace_id, user_id, role')
@@ -67,11 +71,12 @@ const resolveBoardAccess = async ({ boardId, userId, shareSlug }) => {
   }
 
   if (shareSlug && board.visibility === 'link' && board.share_slug === shareSlug) {
+    const isAuthenticated = Boolean(userId);
     return {
       board: mapBoard(board),
       accessMode: 'share',
-      role: board.share_role,
-      canEdit: board.share_role === 'editor',
+      role: isAuthenticated ? board.share_role : 'viewer',
+      canEdit: isAuthenticated && board.share_role === 'editor',
     };
   }
 
@@ -86,12 +91,13 @@ const resolveShareAccess = async ({ shareSlug, userId }) => {
   }
 
   const membership = await getWorkspaceMembership(board.workspace_id, userId);
+  const isAuthenticated = Boolean(userId);
 
   return {
     board: mapBoard(board),
     accessMode: membership ? 'member' : 'share',
-    role: membership ? membership.role : board.share_role,
-    canEdit: membership ? membership.role !== 'viewer' : board.share_role === 'editor',
+    role: membership ? membership.role : isAuthenticated ? board.share_role : 'viewer',
+    canEdit: membership ? membership.role !== 'viewer' : isAuthenticated && board.share_role === 'editor',
   };
 };
 

@@ -10,6 +10,14 @@ const { listPresence } = require('../services/presenceService');
 const getSession = async (req, res) => {
   const session = await getBoardSession(req.params.boardId);
   const presence = await listPresence(req.params.boardId);
+  const currentUser =
+    req.user ||
+    ({
+      id: 'guest',
+      email: 'guest@kanvas.local',
+      displayName: 'Guest',
+      avatarUrl: null,
+    });
 
   res.json({
     ...session,
@@ -18,7 +26,7 @@ const getSession = async (req, res) => {
       role: req.boardAccess.role,
       canEdit: req.boardAccess.canEdit,
     },
-    currentUser: req.user,
+    currentUser,
     presence,
   });
 };
@@ -36,7 +44,7 @@ const postShareSettings = async (req, res) => {
 };
 
 const getShare = async (req, res) => {
-  const access = await resolveShareAccess({ shareSlug: req.params.slug, userId: req.user.id });
+  const access = await resolveShareAccess({ shareSlug: req.params.slug, userId: req.user?.id || null });
   const board = await resolveShare(req.params.slug);
 
   res.json({

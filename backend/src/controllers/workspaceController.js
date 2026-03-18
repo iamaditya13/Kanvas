@@ -5,6 +5,7 @@ const {
   createWorkspace,
   listBoardsForWorkspace,
   createBoard,
+  deleteBoard,
 } = require('../services/workspaceService');
 
 const getWorkspaces = async (req, res) => {
@@ -29,9 +30,15 @@ const postBoard = async (req, res) => {
   res.status(201).json(board);
 };
 
+const destroyBoard = async (req, res) => {
+  const result = await deleteBoard(req.params.workspaceId, req.params.boardId, req.user.id);
+  res.json(result);
+};
+
 module.exports = {
   getWorkspaces,
   postWorkspace,
   getBoards,
   postBoard,
+  destroyBoard,
 };

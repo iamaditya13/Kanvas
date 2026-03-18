@@ -10,7 +10,7 @@ const requireBoardAccess = (requiredLevel = 'viewer') => async (req, res, next) 
 
     const access = await resolveBoardAccess({
       boardId,
-      userId: req.user.id,
+      userId: req.user?.id || null,
       shareSlug,
     });
 

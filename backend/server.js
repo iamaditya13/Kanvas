@@ -1,14 +1,23 @@
-require('dotenv').config();
 const http = require('http');
 const env = require('./src/config/env');
 const { createApp } = require('./src/app');
 const { createCollaborationServer } = require('./src/socket/collaborationServer');
+const { assertDatabaseReady } = require('./src/services/schemaService');
 
-const { app, corsOptions } = createApp();
-const server = http.createServer(app);
+const bootstrap = async () => {
+  await assertDatabaseReady();
 
-createCollaborationServer({ httpServer: server, cors: corsOptions });
+  const { app, corsOptions } = createApp();
+  const server = http.createServer(app);
 
-server.listen(env.port, () => {
-  console.log(`Kanvas backend listening on port ${env.port}`);
+  createCollaborationServer({ httpServer: server, cors: corsOptions });
+
+  server.listen(env.port, () => {
+    console.log(`Kanvas backend listening on port ${env.port}`);
+  });
+};
+
+bootstrap().catch((error) => {
+  console.error('Failed to start Kanvas backend', error.message);
+  process.exit(1);
 });

@@ -26,7 +26,7 @@ const getElementRow = async (boardId, elementId) => {
 const createElement = async (boardId, userId, elementInput) => {
   const now = new Date().toISOString();
   const record = {
-    id: crypto.randomUUID(),
+    id: elementInput.id || crypto.randomUUID(),
     board_id: boardId,
     type: elementInput.type,
     x: elementInput.x,

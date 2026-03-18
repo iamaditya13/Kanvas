@@ -42,6 +42,7 @@ const shareSettingsSchema = z.object({
 
 const createElementSchema = z
   .object({
+    id: uuid.optional(),
     type: elementTypeSchema,
     x: boundedNumber,
     y: boundedNumber,

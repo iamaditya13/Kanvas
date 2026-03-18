@@ -88,6 +88,71 @@ create table if not exists public.board_presence (
   primary key (board_id, socket_id)
 );
 
+-- Reconcile legacy schemas where tables already exist with older column sets.
+alter table if exists public.users add column if not exists email text;
+alter table if exists public.users add column if not exists display_name text;
+alter table if exists public.users add column if not exists avatar_url text;
+alter table if exists public.users add column if not exists created_at timestamptz not null default now();
+alter table if exists public.users add column if not exists updated_at timestamptz not null default now();
+
+alter table if exists public.workspaces add column if not exists owner_id uuid;
+alter table if exists public.workspaces add column if not exists name text;
+alter table if exists public.workspaces add column if not exists created_at timestamptz not null default now();
+alter table if exists public.workspaces add column if not exists updated_at timestamptz not null default now();
+
+alter table if exists public.workspace_members add column if not exists workspace_id uuid;
+alter table if exists public.workspace_members add column if not exists user_id uuid;
+alter table if exists public.workspace_members add column if not exists role text;
+alter table if exists public.workspace_members add column if not exists created_at timestamptz not null default now();
+alter table if exists public.workspace_members add column if not exists updated_at timestamptz not null default now();
+
+alter table if exists public.boards add column if not exists workspace_id uuid;
+alter table if exists public.boards add column if not exists owner_id uuid;
+alter table if exists public.boards add column if not exists name text;
+alter table if exists public.boards add column if not exists visibility text not null default 'private';
+alter table if exists public.boards add column if not exists share_role text not null default 'editor';
+alter table if exists public.boards add column if not exists share_slug text;
+alter table if exists public.boards add column if not exists created_at timestamptz not null default now();
+alter table if exists public.boards add column if not exists updated_at timestamptz not null default now();
+
+alter table if exists public.elements add column if not exists board_id uuid;
+alter table if exists public.elements add column if not exists type text;
+alter table if exists public.elements add column if not exists x double precision;
+alter table if exists public.elements add column if not exists y double precision;
+alter table if exists public.elements add column if not exists width double precision;
+alter table if exists public.elements add column if not exists height double precision;
+alter table if exists public.elements add column if not exists content text not null default '';
+alter table if exists public.elements add column if not exists color text;
+alter table if exists public.elements add column if not exists payload jsonb not null default '{}'::jsonb;
+alter table if exists public.elements add column if not exists version integer not null default 1;
+alter table if exists public.elements add column if not exists created_by uuid;
+alter table if exists public.elements add column if not exists updated_by uuid;
+alter table if exists public.elements add column if not exists created_at timestamptz not null default now();
+alter table if exists public.elements add column if not exists updated_at timestamptz not null default now();
+
+alter table if exists public.comments add column if not exists board_id uuid;
+alter table if exists public.comments add column if not exists element_id uuid;
+alter table if exists public.comments add column if not exists created_by uuid;
+alter table if exists public.comments add column if not exists author_name text;
+alter table if exists public.comments add column if not exists author_email text;
+alter table if exists public.comments add column if not exists content text;
+alter table if exists public.comments add column if not exists created_at timestamptz not null default now();
+
+alter table if exists public.activity_logs add column if not exists board_id uuid;
+alter table if exists public.activity_logs add column if not exists element_id uuid;
+alter table if exists public.activity_logs add column if not exists user_id uuid;
+alter table if exists public.activity_logs add column if not exists action text;
+alter table if exists public.activity_logs add column if not exists details jsonb not null default '{}'::jsonb;
+alter table if exists public.activity_logs add column if not exists created_at timestamptz not null default now();
+
+alter table if exists public.board_presence add column if not exists board_id uuid;
+alter table if exists public.board_presence add column if not exists user_id uuid;
+alter table if exists public.board_presence add column if not exists socket_id text;
+alter table if exists public.board_presence add column if not exists email text;
+alter table if exists public.board_presence add column if not exists display_name text;
+alter table if exists public.board_presence add column if not exists color text;
+alter table if exists public.board_presence add column if not exists last_seen timestamptz not null default now();
+
 create index if not exists idx_workspace_members_user on public.workspace_members (user_id);
 create index if not exists idx_boards_workspace on public.boards (workspace_id, created_at desc);
 create index if not exists idx_boards_share_slug on public.boards (share_slug);

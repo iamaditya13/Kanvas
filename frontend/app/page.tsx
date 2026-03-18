@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { createClient } from '@/utils/supabase/client';
@@ -40,6 +40,8 @@ export default function HomePage() {
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [boardToDelete, setBoardToDelete] = useState<BoardSummary | null>(null);
+  const [deletingBoard, setDeletingBoard] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +134,26 @@ export default function HomePage() {
     await supabase.auth.signOut();
     router.push('/login');
   };
+
+  const handleDeleteBoard = async () => {
+    if (!activeWorkspace || !boardToDelete) {
+      return;
+    }
+
+    setDeletingBoard(true);
+    try {
+      await api.delete(`/api/workspaces/${activeWorkspace.id}/boards/${boardToDelete.id}`);
+      setBoards((current) => current.filter((board) => board.id !== boardToDelete.id));
+      setBoardToDelete(null);
+      toast.success('Board deleted');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete board');
+    } finally {
+      setDeletingBoard(false);
+    }
+  };
+
+  const canDeleteBoards = activeWorkspace?.role === 'admin' || activeWorkspace?.role === 'member';
 
   return (
     <div className="flex min-h-screen bg-[radial-gradient(circle_at_top_left,_#eef5ff,_#fbf7ef_48%,_#f5efe6)] text-slate-900">
@@ -226,38 +248,76 @@ export default function HomePage() {
             ) : (
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {boards.map((board, index) => (
-                  <button
+                  <div
                     key={board.id}
-                    onClick={() => router.push(`/board/${board.id}`)}
-                    className="group overflow-hidden rounded-[30px] border border-white/60 bg-white/65 text-left shadow-[0_24px_70px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(15,23,42,0.16)]"
+                    className="group relative overflow-hidden rounded-[30px] border border-white/60 bg-white/65 text-left shadow-[0_24px_70px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(15,23,42,0.16)]"
                   >
-                    <div className={`h-40 bg-gradient-to-br ${gradients[index % gradients.length]} p-6`}>
-                      <div className="flex h-full items-end justify-between">
-                        <div className="space-y-2">
-                          <div className="h-3 w-24 rounded-full bg-white/70" />
-                          <div className="h-3 w-40 rounded-full bg-white/60" />
-                        </div>
-                        <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-slate-500">
-                          {board.visibility === 'link' ? 'Shared link' : 'Private'}
+                    {canDeleteBoards && (
+                      <button
+                        onClick={() => setBoardToDelete(board)}
+                        className="absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-rose-200 bg-white/95 text-rose-500 shadow-sm transition hover:bg-rose-50"
+                        title="Delete board"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button onClick={() => router.push(`/board/${board.id}`)} className="block w-full text-left">
+                      <div className={`h-40 bg-gradient-to-br ${gradients[index % gradients.length]} p-6`}>
+                        <div className="flex h-full items-end justify-between">
+                          <div className="space-y-2">
+                            <div className="h-3 w-24 rounded-full bg-white/70" />
+                            <div className="h-3 w-40 rounded-full bg-white/60" />
+                          </div>
+                          <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-slate-500">
+                            {board.visibility === 'link' ? 'Shared link' : 'Private'}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="p-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-slate-800 transition group-hover:text-[#135BEC]">{board.name}</h3>
-                          <p className="mt-2 text-sm text-slate-400">Updated {new Date(board.updatedAt).toLocaleDateString()}</p>
+                      <div className="p-6">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-semibold text-slate-800 transition group-hover:text-[#135BEC]">{board.name}</h3>
+                            <p className="mt-2 text-sm text-slate-400">Updated {new Date(board.updatedAt).toLocaleDateString()}</p>
+                          </div>
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">Live</span>
                         </div>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">Live</span>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </div>
       </main>
+
+      {boardToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Delete board?</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              This will permanently delete <span className="font-medium text-slate-700">{boardToDelete.name}</span> and all of its canvas
+              elements, comments, and activity history.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setBoardToDelete(null)}
+                disabled={deletingBoard}
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleDeleteBoard()}
+                disabled={deletingBoard}
+                className="rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingBoard ? 'Deleting...' : 'Delete board'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

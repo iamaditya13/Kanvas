@@ -1,4 +1,5 @@
 const { supabase } = require('../lib/supabase');
+let hasLoggedUsersTableMissing = false;
 
 const buildDisplayName = (user) =>
   user.user_metadata?.full_name ||
@@ -18,7 +19,17 @@ const syncAuthUser = async (user) => {
   const { error } = await supabase.from('users').upsert([payload]);
 
   if (error) {
-    console.error('Failed to sync user profile', error);
+    if (error.code === 'PGRST205') {
+      if (!hasLoggedUsersTableMissing) {
+        console.error(
+          'Failed to sync user profile: table public.users is missing. ' +
+            'Apply supabase/migrations/202603170001_realtime_collaboration.sql.',
+        );
+        hasLoggedUsersTableMissing = true;
+      }
+    } else {
+      console.error('Failed to sync user profile', error);
+    }
   }
 
   return {

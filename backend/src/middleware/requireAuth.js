@@ -16,29 +16,49 @@ const extractToken = (req) => {
   return token;
 };
 
+const resolveUser = async (token, { strict }) => {
+  if (!token) {
+    if (strict) {
+      throw new AppError(401, 'AUTH_REQUIRED', 'Authentication is required');
+    }
+    return null;
+  }
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    if (strict) {
+      throw new AppError(401, 'AUTH_INVALID', 'Invalid or expired access token');
+    }
+    return null;
+  }
+
+  return syncAuthUser(user);
+};
+
 const requireAuth = async (req, res, next) => {
   try {
     const token = extractToken(req);
-
-    if (!token) {
-      throw new AppError(401, 'AUTH_REQUIRED', 'Authentication is required');
-    }
-
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      throw new AppError(401, 'AUTH_INVALID', 'Invalid or expired access token');
-    }
-
     req.authToken = token;
-    req.user = await syncAuthUser(user);
+    req.user = await resolveUser(token, { strict: true });
     next();
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = { requireAuth, extractToken };
+const optionalAuth = async (req, res, next) => {
+  try {
+    const token = extractToken(req);
+    req.authToken = token;
+    req.user = await resolveUser(token, { strict: false });
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { requireAuth, optionalAuth, extractToken };

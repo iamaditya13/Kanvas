@@ -75,10 +75,12 @@ test('auth route rejects invalid signup payloads', async () => {
   assert.equal(response.body.code, 'VALIDATION_ERROR');
 });
 
-test('board session route requires authentication', async () => {
+test('board edit route requires authentication', async () => {
   const response = await invokeRouter(boardRoutes, {
-    method: 'GET',
-    url: '/6f6f6f6f-6f6f-4f6f-8f6f-6f6f6f6f6f6f/session',
+    method: 'PATCH',
+    url: '/6f6f6f6f-6f6f-4f6f-8f6f-6f6f6f6f6f6f',
+    headers: { 'content-type': 'application/json' },
+    body: { name: 'Renamed board' },
   });
 
   assert.equal(response.statusCode, 401);
